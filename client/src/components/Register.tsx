@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import axiosInstance from '../config/axios';
 import { endpoints } from '../config/api';
 import Layout from './Layout';
 import FormInput from './ui/FormInput';
@@ -13,6 +13,10 @@ export default function Register() {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    username?: string;
+    email?: string;
+  }>({});
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -22,11 +26,19 @@ export default function Register() {
       ...formData,
       [e.target.name]: e.target.value,
     });
+    // Clear field-specific error when user starts typing
+    if (fieldErrors[e.target.name as keyof typeof fieldErrors]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [e.target.name]: undefined
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     setSuccess('');
     setIsLoading(true);
 
@@ -37,7 +49,7 @@ export default function Register() {
     }
 
     try {
-      const response = await axios.post(endpoints.register, {
+      const response = await axiosInstance.post(endpoints.register, {
         username: formData.username,
         email: formData.email,
         password: formData.password,
@@ -47,11 +59,24 @@ export default function Register() {
       setTimeout(() => {
         navigate('/dashboard');
       }, 2000);
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } catch (error: any) {
+      if (error.response?.status === 400 && error.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        
+        // Set field-specific errors
+        if (errorMessage.includes('Username already exists')) {
+          setFieldErrors(prev => ({ ...prev, username: errorMessage }));
+        } else if (errorMessage.includes('Email already exists')) {
+          setFieldErrors(prev => ({ ...prev, email: errorMessage }));
+        } else {
+          setError(errorMessage);
+        }
+        
+        console.error('Registration error:', errorMessage);
+      } else if (error.message === 'Network Error') {
+        setError('Unable to connect to the server. Please check your connection.');
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        setError('Registration failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -101,6 +126,7 @@ export default function Register() {
                 placeholder="Choose a username"
                 helperText="Username must be at least 3 characters long"
                 pattern=".{3,}"
+                error={fieldErrors.username}
               />
 
               <FormInput
@@ -114,6 +140,7 @@ export default function Register() {
                 onChange={handleChange}
                 placeholder="Enter your email"
                 helperText="We'll never share your email with anyone else"
+                error={fieldErrors.email}
               />
 
               <FormInput

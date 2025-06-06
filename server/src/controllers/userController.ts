@@ -8,14 +8,24 @@ export const register = async (req: Request, res: Response) => {
     try {
         const { username, email, password }: UserInput = req.body;
 
-        // Check if user exists
-        const userExists = await pool.query(
+        // Check if username exists
+        const usernameExists = await pool.query(
+            'SELECT * FROM users WHERE username = $1',
+            [username]
+        );
+
+        if (usernameExists.rows.length > 0) {
+            return res.status(400).json({ message: 'Username already exists' });
+        }
+
+        // Check if email exists
+        const emailExists = await pool.query(
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
 
-        if (userExists.rows.length > 0) {
-            return res.status(400).json({ message: 'User already exists' });
+        if (emailExists.rows.length > 0) {
+            return res.status(400).json({ message: 'Email already exists' });
         }
 
         // Hash password
